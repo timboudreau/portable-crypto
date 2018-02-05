@@ -1,0 +1,24 @@
+{
+  "name": "portable-crypto",
+  "version": "1.0.0",
+  "description": "Password based encryption and decryption (with and without hmac), using only NodeJS's built-in `crypto`, which is tested to interoperate cleanly with it's counterpart Java library.  No dependencies.",
+  "main": "portable-crypto.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/timboudreau/portable-crypto.git"
+  },
+  "keywords": [
+    "password",
+    "crypto",
+    "java"
+  ],
+  "author": "Tim Boudreau",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/timboudreau/portable-crypto/issues"
+  },
+  "homepage": "https://github.com/timboudreau/portable-crypto#readme"
+}

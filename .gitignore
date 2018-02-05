@@ -1,0 +1,10 @@
+/nb-configuration.xml
+parent/nb-configuration.xml
+*.orig
+*.class
+*.jar
+
+target/
+node_modules/
+nbproject/
+

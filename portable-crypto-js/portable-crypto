@@ -1,0 +1,7 @@
+#!/bin/bash
+
+script="$0"
+basename="$(dirname $script)"
+
+/usr/bin/env node $basename/portable-crypto.js $@
+
