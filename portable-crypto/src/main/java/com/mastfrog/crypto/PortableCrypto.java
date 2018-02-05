@@ -49,8 +49,10 @@ import javax.crypto.spec.SecretKeySpec;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static com.mastfrog.crypto.CryptoConfig.BLOWFISH;
 import static com.mastfrog.crypto.Features.DETERMINISTIC_TEST_MODE;
+import static com.mastfrog.crypto.Features.ENCRYPT;
 import static com.mastfrog.crypto.Features.LOG;
 import static com.mastfrog.crypto.Features.MAC;
+import com.mastfrog.util.thread.NonThrowingAutoCloseable;
 
 /**
  * Basic password-based encryption with (optional) hmac, configured and tested
@@ -92,7 +94,7 @@ import static com.mastfrog.crypto.Features.MAC;
  *
  * @author Tim Boudreau
  */
-public final class PortableCrypto {
+public final class PortableCrypto implements NonThrowingAutoCloseable {
 
     private static final long TIMESTAMP_BASE = 1170786968198L;
 
@@ -109,7 +111,7 @@ public final class PortableCrypto {
      * @param password The password
      */
     public PortableCrypto(String password) {
-        this(null, password, null, null);
+        this(null, password, null, null, MAC, ENCRYPT);
     }
 
     /**
@@ -125,6 +127,10 @@ public final class PortableCrypto {
     public PortableCrypto(Random random, String password, CryptoConfig config, MacConfig macConfig, Features... features) {
         this.rnd = random == null ? defaultRandom() : random;
         this.features = toSet(features);
+        if (this.features.isEmpty()) {
+            System.err.println("PortableCrypto created configured for neither encryption nor mac generation - "
+                    + " it will simply return the bytes you pass it.  Be sure this is what you want.");
+        }
         this.cryptoConfig = config == null ? BLOWFISH : config;
         this.macConfig = macConfig == null ? MacConfig.HMAC256 : macConfig;
         key = createKey(password);
@@ -147,6 +153,13 @@ public final class PortableCrypto {
         EnumSet<Features> result = EnumSet.noneOf(Features.class);
         result.addAll(Arrays.asList(features));
         return result;
+    }
+
+    /**
+     * For the paranoid, overwrites the key array.
+     */
+    public void close() {
+        Arrays.fill(key, (byte) 0);
     }
 
     byte[] createKey(String password) {
@@ -233,7 +246,12 @@ public final class PortableCrypto {
      * @return An encrypted representation of the bytes
      */
     public byte[] encrypt(byte[] bytes) {
-        byte[] encrypted = _encrypt(bytes);
+        byte[] encrypted;
+        if (features.contains(ENCRYPT)) {
+            encrypted = _encrypt(bytes);
+        } else {
+            encrypted = bytes;
+        }
         if (!features.contains(MAC)) {
             return encrypted;
         }
@@ -282,7 +300,13 @@ public final class PortableCrypto {
      * @return The decrypted byte array
      */
     public byte[] decrypt(byte[] data) {
+        if (!features.contains(MAC) && !features.contains(ENCRYPT)) {
+            return data;
+        }
         if (!features.contains(MAC)) {
+            if (!features.contains(ENCRYPT)) {
+                return data;
+            }
             if (data.length <= cryptoConfig.ivSize) {
                 throw new IllegalArgumentException("Data length " + data.length
                         + " is less than the minimum initialization vector length.");
@@ -325,6 +349,9 @@ public final class PortableCrypto {
             }
             if (!macValidated) {
                 throw new IllegalArgumentException("Hmac comparsion failed");
+            }
+            if (!features.contains(ENCRYPT)) {
+                return ArrayUtils.concatenate(iv, toDecrypt);
             }
             return _decrypt(iv, toDecrypt);
         } catch (NoSuchAlgorithmException | InvalidKeyException ex) {

@@ -34,6 +34,7 @@ const ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
 
 const FEATURE_USE_MAC = "mac"
         , FEATURE_LOG = "log"
+        , FEATURE_ENCRYPT = "encrypt"
         , FEATURE_DETERMINISTIC_TEST_MODE = "deterministic";
 
 module.exports = {PortableCrypto, FEATURE_USE_MAC, FEATURE_LOG,
@@ -96,7 +97,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         }
         features = Features.apply( {}, f );
     }
-    features = features || new Features( FEATURE_USE_MAC );
+    features = features || new Features( FEATURE_USE_MAC, FEATURE_ENCRYPT );
 
     if ( features.log ) {
         console.error( 'INIT: ' + features );
@@ -172,7 +173,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
             return new Error( 'Data null or undefined' );
         }
         data = ensureInputBuffer( data );
-        const encrypted = _encrypt( data );
+        const encrypted = features.encrypt ? _encrypt( data ) : data;
         if ( !features.mac ) {
             return encrypted;
         }
@@ -255,6 +256,9 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
             buffer = Buffer.from( buffer, 'base64' );
         }
         if ( !features.mac ) {
+            if (!features.encrypt) {
+                return buffer;
+            }
             let iv = buffer.slice( 0, cryptoConfig.ivSize );
             let payloadData = buffer.slice( cryptoConfig.ivSize );
             return _decrypt( iv, payloadData );
@@ -297,6 +301,12 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         }
         if ( !macValidated ) {
             throw new Error( "Mac does not match" );
+        }
+        if (!features.encrypt) {
+            let result = Buffer.alloc(iv.length + toDecrypt.length);
+            iv.copy(result, 0);
+            toDecrypt.copy(result, iv.length);
+            return result;
         }
         return _decrypt( iv, toDecrypt );
     }
@@ -388,6 +398,7 @@ function Features() {
             switch ( arguments[i] ) {
                 case FEATURE_DETERMINISTIC_TEST_MODE :
                 case FEATURE_LOG:
+                case FEATURE_ENCRYPT:
                 case FEATURE_USE_MAC :
                     break;
                 default :
@@ -419,6 +430,7 @@ if ( require.main === module ) {
         console.log( '\nOPTIONS:\n' );
         console.log( ' -d | --decrypt - Decrypt instead of encrypt' )
         console.log( ' -a | --aes     - Use AES128 encryption instead of Blowfish' )
+        console.log( ' -c | --noencrypt   - Don\'t encrypt or decrypt, just validate the mac' )
         console.log( ' -n | --nomac   - Don\'t generate an hmac to verify message integrity' )
         console.log( ' -p | --pass    - Use the passed password or passphrase' )
         console.log( ' -e | --passenv - Read the passphrase from an environment variable' )
@@ -451,10 +463,13 @@ if ( require.main === module ) {
     if ( !args.nomac ) {
         f.mac = true;
     }
+    if ( !args.noencrypt ) {
+        f.encrypt = true;
+    }
     if ( args.verbose ) {
         f.log = true;
     }
-    if (args.deterministic) {
+    if ( args.deterministic ) {
         f.deterministic = true;
     }
     f = new Features( f );
@@ -478,7 +493,7 @@ if ( require.main === module ) {
     function runEncrypt( input ) {
         let buf = pcrypt.encrypt( input );
         if ( args.base64 ) {
-            if (f.log) {
+            if ( f.log ) {
                 console.error( 'END: convert ' + buf.length + ' bytes of output to base64' )
             }
             buf = buf.toString( 'base64' );

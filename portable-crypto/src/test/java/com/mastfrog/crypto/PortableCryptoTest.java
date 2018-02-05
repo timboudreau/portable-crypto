@@ -23,6 +23,7 @@
  */
 package com.mastfrog.crypto;
 
+import static com.mastfrog.crypto.Features.ENCRYPT;
 import static com.mastfrog.crypto.Features.MAC;
 import com.mastfrog.util.Streams;
 import com.mastfrog.util.Strings;
@@ -74,26 +75,34 @@ public class PortableCryptoTest {
 
     @Test
     public void testBlowfishMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, MAC);
+        crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, MAC, ENCRYPT);
         testOneCrypto("blowfish-mac");
     }
 
     @Test
     public void testBlowfishNoMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256);
+        crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, ENCRYPT);
         testOneCrypto("blowfish-nomac");
     }
 
     @Test
     public void testAESMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC);
+        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC, ENCRYPT);
         testOneCrypto("aes-mac");
     }
 
     @Test
     public void testAESNoMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256);
+        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, ENCRYPT);
         testOneCrypto("aes-nomac");
+    }
+
+    @Test
+    public void testJustMac() throws Throwable {
+        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC);
+        String macd = crypto.encryptToString("Test just using a mac with no encryption at all");
+        String unmacd = crypto.decrypt(macd);
+        assertEquals("Test just using a mac with no encryption at all", unmacd);
     }
 
     private void testOneCrypto(String config) throws Throwable {
@@ -171,7 +180,7 @@ public class PortableCryptoTest {
         Thread te = new Thread(() -> {
             ph.arriveAndAwaitAdvance();
             try (InputStream inp = p.getErrorStream()) {
-                Streams.copy(inp, out);
+                Streams.copy(inp, err);
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
@@ -184,7 +193,7 @@ public class PortableCryptoTest {
         }
 
         int code = p.waitFor();
-        assertEquals(Strings.join(' ', args) + "\n" + new String(err.toByteArray(), UTF_8), 0, code);
+        assertEquals(Strings.join(' ', args) + ": " + new String(err.toByteArray(), UTF_8), 0, code);
 
         byte[] result = out.toByteArray();
         return result;

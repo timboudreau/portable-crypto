@@ -33,7 +33,11 @@ public enum Features {
     /**
      * Generate a signed hmac to ensure the message was not altered in transit.
      */
-    MAC( "mac" ),
+    MAC("mac"),
+    /**
+     * Encrypt (if not set, only signing will be done).
+     */
+    ENCRYPT("encrypt"),
     /**
      * <b>For testing only!</b> This feature disables all randomness, so that for the same input the library gives the
      * same output. It is useful for debugging any differences in encoded and decoded buffers between languages, but it
