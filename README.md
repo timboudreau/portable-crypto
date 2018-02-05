@@ -64,10 +64,10 @@ let encryptedString = pcrypt.encryptToString("Look, Ma, I'm the ace of base64");
 
 let decrypted = pcrypt.decrypt(encrypted);
 
-assert(Buffer.equals(decrypted, Buffer.from('Look, Ma, I'm encrypted','utf8'));
+assert(Buffer.equals(decrypted, Buffer.from('Look, Ma, I\'m encrypted','utf8')));
 
 String decryptedString = pcrypt.decrypt(encryptedString);
-assert.equals("Look, Ma, I'm the ace of base64", decryptedString);
+assert.equals("Look, Ma, I\'m the ace of base64", decryptedString);
 ```
 
 The NodeJS version also supports command-line usage:
