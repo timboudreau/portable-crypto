@@ -37,9 +37,12 @@ const FEATURE_USE_MAC = "mac"
         , FEATURE_ENCRYPT = "encrypt"
         , FEATURE_DETERMINISTIC_TEST_MODE = "deterministic";
 
-module.exports = {PortableCrypto, FEATURE_USE_MAC, FEATURE_LOG,
-    FEATURE_DETERMINISTIC_TEST_MODE, BLOWFISH, AES128, HMAC256,
-    CryptoConfig, MacConfig};
+module.exports = {PortableCrypto : PortableCrypto, 
+    FEATURE_USE_MAC : FEATURE_USE_MAC, FEATURE_LOG : FEATURE_LOG,
+    FEATURE_DETERMINISTIC_TEST_MODE : FEATURE_DETERMINISTIC_TEST_MODE, 
+    FEATURE_ENCRYPT : FEATURE_ENCRYPT,
+    BLOWFISH : BLOWFISH, AES128 : AES128, HMAC256 : HMAC256,
+    CryptoConfig : CryptoConfig, MacConfig : MacConfig};
 
 /**
  * Create a new PortableCrypto - 

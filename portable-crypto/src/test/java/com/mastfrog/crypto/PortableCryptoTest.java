@@ -45,6 +45,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Phaser;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.After;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -142,15 +144,18 @@ public class PortableCryptoTest {
         String encString = crypto.encryptToString(in);
         String decString = crypto.decrypt(encString);
         assertEquals(config, in, decString);
+        if (canRunNode()) {
+            byte[] encByNode = runNode(in.getBytes(UTF_8), false, args);
 
-        byte[] encByNode = runNode(in.getBytes(UTF_8), false, args);
+            byte[] decByNode = runNode(encBytes, true, args);
 
-        byte[] decByNode = runNode(encBytes, true, args);
+            out = crypto.decrypt(encByNode);
+            assertArrayEquals(config, in.getBytes(UTF_8), out);
 
-        out = crypto.decrypt(encByNode);
-        assertArrayEquals(config, in.getBytes(UTF_8), out);
-
-        assertArrayEquals(config, in.getBytes(UTF_8), decByNode);
+            assertArrayEquals(config, in.getBytes(UTF_8), decByNode);
+        } else {
+            System.err.println("NodeJS too old to run node tests: ");
+        }
     }
 
     private byte[] runNode(byte[] in, boolean decrypt, String... args) throws IOException, URISyntaxException, InterruptedException {
@@ -188,8 +193,10 @@ public class PortableCryptoTest {
         te.start();
 
         ph.arriveAndDeregister();
-        try (OutputStream o = p.getOutputStream()) {
-            o.write(in);
+        if (in != null) {
+            try (OutputStream o = p.getOutputStream()) {
+                o.write(in);
+            }
         }
 
         int code = p.waitFor();
@@ -211,9 +218,9 @@ public class PortableCryptoTest {
         }
     }
 
-    private String np;
+    private static String np;
 
-    private String nodePath() throws IOException, URISyntaxException {
+    private static String nodePath() throws IOException, URISyntaxException {
         if (np != null) {
             return np;
         }
@@ -228,5 +235,64 @@ public class PortableCryptoTest {
         }
         File f = new File(codebaseDir, "../portable-crypto-js/portable-crypto");
         return np = f.getCanonicalPath();
+    }
+
+    private static Boolean canRunNode;
+    private static String nodeMajorVersion = "<could-not-run-node>";
+
+    private static boolean canRunNode() throws IOException, InterruptedException {
+        if (canRunNode != null) {
+            return canRunNode;
+        }
+        ProcessBuilder pb = new ProcessBuilder("/usr/bin/env", "node", "--version");
+
+        Process p = pb.start();
+        Phaser ph = new Phaser(3);
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Thread t = new Thread(() -> {
+            ph.arriveAndAwaitAdvance();
+            try (InputStream inp = p.getInputStream()) {
+                Streams.copy(inp, out);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        t.start();
+
+        final ByteArrayOutputStream err = new ByteArrayOutputStream();
+        Thread te = new Thread(() -> {
+            ph.arriveAndAwaitAdvance();
+            try (InputStream inp = p.getErrorStream()) {
+                Streams.copy(inp, err);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        te.start();
+
+        ph.arriveAndDeregister();
+
+        int code = p.waitFor();
+        String outString = new String(out.toByteArray(), UTF_8);
+        String errString = new String(err.toByteArray(), UTF_8);
+        nodeMajorVersion = outString;
+        if (code != 0) {
+            System.err.println("node --version exited with " + code + ": \n" + errString);
+            canRunNode = false;
+        } else {
+            if (outString.startsWith("v0.")) {
+                canRunNode = false;
+            } else {
+                Pattern pat = Pattern.compile("v(\\d+)\\..*");
+                Matcher m = pat.matcher(outString);
+                if (m.find()) {
+                    int majorVersion = Integer.parseInt(m.group(1));
+                    canRunNode = majorVersion > 8;
+                } else {
+                    canRunNode = false;
+                }
+            }
+        }
+        return canRunNode;
     }
 }
