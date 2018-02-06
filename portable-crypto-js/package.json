@@ -1,6 +1,6 @@
 {
   "name": "portable-crypto",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Password based encryption and decryption (with and without hmac), using only NodeJS's built-in `crypto`, which is tested to interoperate cleanly with it's counterpart Java library.  No dependencies.",
   "main": "portable-crypto.js",
   "scripts": {

@@ -52,6 +52,7 @@ import static com.mastfrog.crypto.Features.DETERMINISTIC_TEST_MODE;
 import static com.mastfrog.crypto.Features.ENCRYPT;
 import static com.mastfrog.crypto.Features.LOG;
 import static com.mastfrog.crypto.Features.MAC;
+import static com.mastfrog.util.Checks.notNull;
 import com.mastfrog.util.thread.NonThrowingAutoCloseable;
 
 /**
@@ -133,7 +134,7 @@ public final class PortableCrypto implements NonThrowingAutoCloseable {
         }
         this.cryptoConfig = config == null ? BLOWFISH : config;
         this.macConfig = macConfig == null ? MacConfig.HMAC256 : macConfig;
-        key = createKey(password);
+        key = createKey(notNull("password", password));
         if (this.features.contains(LOG)) {
             System.err.println("INIT: features: " + Strings.join(" ", this.features));
             System.err.println("INIT: config: " + this.cryptoConfig);
