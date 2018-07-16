@@ -23,7 +23,7 @@
  */
 package com.mastfrog.crypto;
 
-import com.mastfrog.util.Strings;
+import com.mastfrog.util.strings.Strings;
 
 /**
  * Configuration of the encryption algorithm used by {@link PortableCrypto}. Your best bet is to use one of the

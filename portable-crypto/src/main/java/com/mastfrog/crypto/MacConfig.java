@@ -23,7 +23,7 @@
  */
 package com.mastfrog.crypto;
 
-import com.mastfrog.util.Strings;
+import com.mastfrog.util.strings.Strings;
 
 /**
  * Configuration for mac generation.
