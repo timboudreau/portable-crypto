@@ -23,12 +23,19 @@
  */
 package com.mastfrog.crypto;
 
-import com.mastfrog.util.Exceptions;
-import com.mastfrog.util.Strings;
+import static com.mastfrog.crypto.CryptoConfig.BLOWFISH;
+import static com.mastfrog.crypto.Features.DETERMINISTIC_TEST_MODE;
+import static com.mastfrog.crypto.Features.ENCRYPT;
+import static com.mastfrog.crypto.Features.LOG;
+import static com.mastfrog.crypto.Features.MAC;
 import com.mastfrog.util.collections.ArrayUtils;
+import static com.mastfrog.util.preconditions.Checks.notNull;
+import com.mastfrog.util.preconditions.Exceptions;
+import com.mastfrog.util.strings.Strings;
 import com.mastfrog.util.time.TimeUtil;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -45,15 +52,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static com.mastfrog.crypto.CryptoConfig.BLOWFISH;
-import static com.mastfrog.crypto.Features.DETERMINISTIC_TEST_MODE;
-import static com.mastfrog.crypto.Features.ENCRYPT;
-import static com.mastfrog.crypto.Features.LOG;
-import static com.mastfrog.crypto.Features.MAC;
-import static com.mastfrog.util.Checks.notNull;
-import com.mastfrog.util.thread.NonThrowingAutoCloseable;
+import com.mastfrog.util.thread.QuietAutoCloseable;
 
 /**
  * Basic password-based encryption with (optional) hmac, configured and tested
@@ -95,7 +94,7 @@ import com.mastfrog.util.thread.NonThrowingAutoCloseable;
  *
  * @author Tim Boudreau
  */
-public final class PortableCrypto implements NonThrowingAutoCloseable {
+public final class PortableCrypto implements QuietAutoCloseable {
 
     private static final long TIMESTAMP_BASE = 1170786968198L;
 

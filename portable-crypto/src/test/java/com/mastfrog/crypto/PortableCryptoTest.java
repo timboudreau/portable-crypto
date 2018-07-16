@@ -25,10 +25,10 @@ package com.mastfrog.crypto;
 
 import static com.mastfrog.crypto.Features.ENCRYPT;
 import static com.mastfrog.crypto.Features.MAC;
-import com.mastfrog.util.Streams;
-import com.mastfrog.util.Strings;
 import com.mastfrog.util.collections.ArrayUtils;
+import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.RandomStrings;
+import com.mastfrog.util.strings.Strings;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
