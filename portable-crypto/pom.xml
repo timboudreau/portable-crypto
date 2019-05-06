@@ -7,6 +7,7 @@
         <version>2.5.0-dev</version>
     </parent>
     <artifactId>portable-crypto</artifactId>
+    <url>https://github.com/timboudreau/portable-crypto</url>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -41,7 +42,8 @@
     <licenses>
         <license>
             <name>MIT</name>
-            <url>http://opensource.org/licenses/MIT</url>
+            <url>https://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
         </license>
     </licenses>
     <developers>
@@ -53,15 +55,16 @@
     </developers>
     <inceptionYear>2018</inceptionYear>
     <scm>
+        <url>https://github.com/timboudreau/portable-crypto.git</url>
         <connection>scm:git:https://github.com/timboudreau/portable-crypto.git</connection>
-        <url>https://github.com/timboudreau/portable-crypto</url>
-        <developerConnection>scm:git:git@github.com:timboudreau/portable-crypto.git</developerConnection>
+        <developerConnection>git@github.com/timboudreau/portable-crypto.git</developerConnection>
     </scm>    
-<organization>
+<issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/portable-crypto/issues</url>
+    </issueManagement>
+    <organization>
         <name>Mastfrog Technologies</name>
         <url>https://mastfrog.com</url>
     </organization>
-    <issueManagement>
-        <system>Github</system>
-        <url>https://github.com/timboudreau/portable-crypto/issues</url>
-    </issueManagement></project>
+    </project>
