@@ -57,4 +57,7 @@
         <url>https://github.com/timboudreau/portable-crypto</url>
         <developerConnection>scm:git:git@github.com:timboudreau/portable-crypto.git</developerConnection>
     </scm>    
-</project>
+<issueManagement>
+        <system>Github</system>
+        <url>https://github.com/timboudreau/portable-crypto/issues</url>
+    </issueManagement></project>
