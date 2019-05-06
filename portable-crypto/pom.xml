@@ -57,7 +57,11 @@
         <url>https://github.com/timboudreau/portable-crypto</url>
         <developerConnection>scm:git:git@github.com:timboudreau/portable-crypto.git</developerConnection>
     </scm>    
-<issueManagement>
+<organization>
+        <name>Mastfrog Technologies</name>
+        <url>https://mastfrog.com</url>
+    </organization>
+    <issueManagement>
         <system>Github</system>
         <url>https://github.com/timboudreau/portable-crypto/issues</url>
     </issueManagement></project>
