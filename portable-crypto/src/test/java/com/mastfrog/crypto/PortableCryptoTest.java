@@ -26,6 +26,7 @@ package com.mastfrog.crypto;
 import static com.mastfrog.crypto.Features.ENCRYPT;
 import static com.mastfrog.crypto.Features.MAC;
 import com.mastfrog.util.collections.ArrayUtils;
+import com.mastfrog.util.file.FileUtils;
 import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.RandomStrings;
 import com.mastfrog.util.strings.Strings;
@@ -37,6 +38,7 @@ import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Path;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,7 +50,6 @@ import java.util.concurrent.Phaser;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.After;
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -145,16 +146,40 @@ public class PortableCryptoTest {
         String decString = crypto.decrypt(encString);
         assertEquals(config, in, decString);
         if (canRunNode()) {
-            byte[] encByNode = runNode(in.getBytes(UTF_8), false, args);
-
+            byte[] inBytes = in.getBytes(UTF_8);
+            byte[] encByNode = runNode(inBytes, false, args);
             byte[] decByNode = runNode(encBytes, true, args);
-
             out = crypto.decrypt(encByNode);
-            assertArrayEquals(config, in.getBytes(UTF_8), out);
-
-            assertArrayEquals(config, in.getBytes(UTF_8), decByNode);
+            assertArrayEquals(config, inBytes, out);
+            assertArrayEquals(config, inBytes, decByNode);
         } else {
             System.err.println("NodeJS too old to run node tests: ");
+        }
+    }
+
+    private static String toString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            if (b >= 33 && b <= 126) {
+                sb.append((char) b);
+            } else {
+                String x = Integer.toHexString(b);
+                if (x.length() == 1) {
+                    x = "0" + x;
+                }
+                if (sb.length() > 0 && sb.charAt(sb.length() - 1) != ' ') {
+                    sb.append(' ');
+                }
+                sb.append("0x").append(x).append(' ');
+            }
+        }
+        return sb.toString();
+    }
+
+    private static void assertArrayEquals(String msg, byte[] a, byte[] b) {
+        if (!Arrays.equals(a, b)) {
+            fail(msg + " Byte arrays do not match. Lengths " + a.length + " and " + b.length
+                    + "\n" + toString(a) + "\n" + toString(b));
         }
     }
 
@@ -245,39 +270,15 @@ public class PortableCryptoTest {
             return canRunNode;
         }
         ProcessBuilder pb = new ProcessBuilder("/usr/bin/env", "node", "--version");
-
+        Path output = FileUtils.newTempFile("node-version");
+        pb.redirectOutput(output.toFile());
         Process p = pb.start();
-        Phaser ph = new Phaser(3);
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Thread t = new Thread(() -> {
-            ph.arriveAndAwaitAdvance();
-            try (InputStream inp = p.getInputStream()) {
-                Streams.copy(inp, out);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        });
-        t.start();
-
-        final ByteArrayOutputStream err = new ByteArrayOutputStream();
-        Thread te = new Thread(() -> {
-            ph.arriveAndAwaitAdvance();
-            try (InputStream inp = p.getErrorStream()) {
-                Streams.copy(inp, err);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        });
-        te.start();
-
-        ph.arriveAndDeregister();
-
         int code = p.waitFor();
-        String outString = new String(out.toByteArray(), UTF_8);
-        String errString = new String(err.toByteArray(), UTF_8);
+        String outString = FileUtils.readUTF8String(output).trim();
+        FileUtils.deleteIfExists(output);
         nodeMajorVersion = outString;
         if (code != 0) {
-            System.err.println("node --version exited with " + code + ": \n" + errString);
+            System.err.println("node --version exited with " + code + ": \n");
             canRunNode = false;
         } else {
             if (outString.startsWith("v0.")) {
