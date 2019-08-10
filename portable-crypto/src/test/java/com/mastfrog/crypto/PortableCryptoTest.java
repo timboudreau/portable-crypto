@@ -138,6 +138,58 @@ public class PortableCryptoTest {
                 return;
         }
         byte[] encBytes = crypto.encrypt(in);
+        switch (Arrays.asList(strings).indexOf(in)) {
+            case 0:
+                switch (config) {
+                    case "aes-mac":
+                        assertEquals(toString(encBytes), 96, encBytes.length);
+                        break;
+                    case "blowfish-mac":
+                        assertEquals(toString(encBytes), 80, encBytes.length);
+                        break;
+                    case "blowfish-nomac":
+                        assertEquals(toString(encBytes), 32, encBytes.length);
+                        break;
+                    case "aes-nomac":
+                        assertEquals(toString(encBytes), 48, encBytes.length);
+                        break;
+                }
+                break;
+            case 1:
+                switch (config) {
+                    case "aes-mac":
+                        assertEquals(toString(encBytes), 128, encBytes.length);
+                        break;
+                    case "blowfish-mac":
+                        assertEquals(toString(encBytes), 120, encBytes.length);
+                        break;
+                    case "blowfish-nomac":
+                        assertEquals(toString(encBytes), 72, encBytes.length);
+                        break;
+                    case "aes-nomac":
+                        assertEquals(toString(encBytes), 80, encBytes.length);
+                        break;
+                }
+                break;
+            case 2:
+                switch (config) {
+                    case "aes-mac":
+                        assertEquals(toString(encBytes), 400, encBytes.length);
+                        break;
+                    case "blowfish-mac":
+                        assertEquals(toString(encBytes), 384, encBytes.length);
+                        break;
+                    case "blowfish-nomac":
+                        assertEquals(toString(encBytes), 336, encBytes.length);
+                        break;
+                    case "aes-nomac":
+                        assertEquals(toString(encBytes), 352, encBytes.length);
+                        break;
+                }
+                break;
+            default:
+                fail("Huh? " + in);
+        }
         assertTrue(config, encBytes.length > crypto.minDecryptionDataLength());
         byte[] out = crypto.decrypt(encBytes);
         assertArrayEquals(config, in.getBytes(UTF_8), out);
@@ -163,7 +215,7 @@ public class PortableCryptoTest {
             if (b >= 33 && b <= 126) {
                 sb.append((char) b);
             } else {
-                String x = Integer.toHexString(b);
+                String x = Integer.toHexString(b & 0xFF);
                 if (x.length() == 1) {
                     x = "0" + x;
                 }
@@ -178,8 +230,29 @@ public class PortableCryptoTest {
 
     private static void assertArrayEquals(String msg, byte[] a, byte[] b) {
         if (!Arrays.equals(a, b)) {
+            int firstDifference = 0;
+            for (int i = 0; i < Math.min(b.length, a.length); i++) {
+                if (a[i] != b[i]) {
+                    firstDifference = i;
+                    break;
+                }
+            }
+            byte[] aa = new byte[0];
+            byte[] bb = new byte[0];
+            if (firstDifference < a.length) {
+                aa = new byte[a.length - firstDifference];
+                System.arraycopy(a, firstDifference, aa, 0, aa.length);
+            }
+            if (firstDifference < b.length) {
+                bb = new byte[b.length - firstDifference];
+                System.arraycopy(b, firstDifference, bb, 0, bb.length);
+            }
+
             fail(msg + " Byte arrays do not match. Lengths " + a.length + " and " + b.length
-                    + "\n" + toString(a) + "\n" + toString(b));
+                    + ". First difference at " + firstDifference
+                    + "\nTails:\n" + toString(aa) + "\n" + toString(bb)
+                    + "\nFull:\n" + toString(a) + "\n" + toString(b)
+            );
         }
     }
 
