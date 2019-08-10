@@ -24,6 +24,7 @@
 package com.mastfrog.crypto;
 
 import static com.mastfrog.crypto.Features.ENCRYPT;
+import static com.mastfrog.crypto.Features.LOG;
 import static com.mastfrog.crypto.Features.MAC;
 import com.mastfrog.util.collections.ArrayUtils;
 import com.mastfrog.util.file.FileUtils;
@@ -90,7 +91,7 @@ public class PortableCryptoTest {
 
     @Test
     public void testAESMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC, ENCRYPT);
+        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC, ENCRYPT, LOG);
         testOneCrypto("aes-mac");
     }
 
@@ -191,14 +192,18 @@ public class PortableCryptoTest {
                 fail("Huh? " + in);
         }
         assertTrue(config, encBytes.length > crypto.minDecryptionDataLength());
+        byte[] inBytes = in.getBytes(UTF_8);
         byte[] out = crypto.decrypt(encBytes);
-        assertArrayEquals(config, in.getBytes(UTF_8), out);
+        String decrypted = new String(out, UTF_8);
+        assertEquals(config + " '" + in + "' -> '" + decrypted, in.length(),
+                decrypted.length());
+        assertEquals(config, "'" + in + "'", "'" + decrypted + "'");
+        assertArrayEquals(config, inBytes, out);
 
         String encString = crypto.encryptToString(in);
         String decString = crypto.decrypt(encString);
         assertEquals(config, in, decString);
         if (canRunNode()) {
-            byte[] inBytes = in.getBytes(UTF_8);
             byte[] encByNode = runNode(inBytes, false, args);
             byte[] decByNode = runNode(encBytes, true, args);
             out = crypto.decrypt(encByNode);
@@ -212,7 +217,7 @@ public class PortableCryptoTest {
     private static String toString(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
-            if (b >= 33 && b <= 126) {
+            if (b >= 33 && b <= 126 && b != ' ') {
                 sb.append((char) b);
             } else {
                 String x = Integer.toHexString(b & 0xFF);
