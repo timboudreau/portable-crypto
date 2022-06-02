@@ -38,7 +38,10 @@ import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,7 +64,6 @@ import org.junit.Test;
  */
 public class PortableCryptoTest {
 
-    private PortableCrypto crypto;
     Random rnd = new Random(23);
     String pass = new RandomStrings(rnd).get(300);
 
@@ -78,39 +80,64 @@ public class PortableCryptoTest {
 
     @Test
     public void testBlowfishMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, MAC, ENCRYPT);
-        testOneCrypto("blowfish-mac");
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, MAC, ENCRYPT);
+        testOneCrypto("blowfish-mac", crypto);
     }
 
     @Test
     public void testBlowfishNoMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, ENCRYPT);
-        testOneCrypto("blowfish-nomac");
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.BLOWFISH, MacConfig.HMAC256, ENCRYPT);
+        testOneCrypto("blowfish-nomac", crypto);
     }
 
     @Test
     public void testAESMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC, ENCRYPT);
-        testOneCrypto("aes-mac");
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC, ENCRYPT);
+        testOneCrypto("aes-mac", crypto);
     }
 
     @Test
     public void testAESNoMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, ENCRYPT);
-        testOneCrypto("aes-nomac");
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, ENCRYPT);
+        testOneCrypto("aes-nomac", crypto);
+    }
+
+//    @Test
+    public void testChaCha() throws Throwable {
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.CHACHA, MacConfig.HMAC256, ENCRYPT, MAC);
+        testOneCrypto("chacha", crypto);
+    }
+
+//    @Test
+    public void testChaChaNoMac() throws Throwable {
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.CHACHA, MacConfig.HMAC256, ENCRYPT);
+        testOneCrypto("chacha-nomac", crypto);
+    }
+
+//    @Test
+    public void testChaChaPoly1305() throws Throwable {
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.CHACHA_POLY1305, MacConfig.HMAC256, ENCRYPT, MAC);
+        testOneCrypto("chacha-poly1305", crypto);
     }
 
     @Test
+    public void testChaChaPoly1305NoMac() throws Throwable {
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.CHACHA_POLY1305, MacConfig.HMAC256, ENCRYPT);
+        testOneCrypto("chacha-poly1305-nomac", crypto);
+    }
+
+//    @Test
     public void testJustMac() throws Throwable {
-        crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC);
+        PortableCrypto crypto = new PortableCrypto(rnd, pass, CryptoConfig.AES128, MacConfig.HMAC256, MAC);
         String macd = crypto.encryptToString("Test just using a mac with no encryption at all");
         String unmacd = crypto.decrypt(macd);
         assertEquals("Test just using a mac with no encryption at all", unmacd);
     }
 
-    private void testOneCrypto(String config) throws Throwable {
+    private void testOneCrypto(String config, PortableCrypto crypto) throws Throwable {
         for (String s : strings) {
-            testOne(s, config);
+            selfTest(crypto);
+            testOne(s, config, crypto);
         }
     }
 
@@ -118,7 +145,29 @@ public class PortableCryptoTest {
         return args;
     }
 
-    private final void testOne(String in, String config) throws Throwable {
+    private void selfTest(PortableCrypto crypto) {
+        if (crypto.isEnabled(Features.ENCRYPT)) {
+            assertCanEncryptAndDecrypt("This is some stuff to encrypt", crypto);
+        }
+    }
+
+    private void assertCanEncryptAndDecrypt(String what, PortableCrypto crypto) {
+        try {
+            byte[] encrypted = crypto.encrypt(what.getBytes(UTF_8));
+            byte[] decrypted = crypto.decrypt(encrypted);
+            String dec = new String(decrypted, UTF_8);
+            assertEquals("Decryption corrupted with " + crypto, what, dec);
+            String encryptedString = crypto.encryptToString(what);
+            String decryptedString = crypto.decrypt(encryptedString);
+            assertEquals("Decription of string corrupted with " + crypto, what, decryptedString);
+        } catch (AssertionError ae) {
+            throw ae;
+        } catch (Exception | Error ex) {
+            throw new AssertionError("Failed with " + crypto + " encrypting '" + what + "'", ex);
+        }
+    }
+
+    private final void testOne(String in, String config, PortableCrypto crypto) throws Throwable {
         String args[];
         switch (config) {
             case "aes-mac":
@@ -132,6 +181,18 @@ public class PortableCryptoTest {
                 break;
             case "blowfish-mac":
                 args = args("-p", pass);
+                break;
+            case "chacha":
+                args = args("-h", "-p", pass);
+                break;
+            case "chacha-nomac":
+                args = args("-n", "-h", "-p", pass);
+                break;
+            case "chacha-poly1305":
+                args = args("-l", "-p", pass);
+                break;
+            case "chacha-poly1305-nomac":
+                args = args("-n", "-l", "-p", pass);
                 break;
             default:
                 fail(config);
@@ -211,8 +272,8 @@ public class PortableCryptoTest {
         String decString = crypto.decrypt(encString).substring(0, in.length());
         assertEquals(config, in, decString);
         if (canRunNode()) {
-            byte[] encByNode = runNode(inBytes, false, args);
-            byte[] decByNode = runNode(encBytes, true, args);
+            byte[] encByNode = runNode(crypto, inBytes, false, args);
+            byte[] decByNode = runNode(crypto, encBytes, true, args);
             out = crypto.decrypt(encByNode);
             assertArrayEquals(config, inBytes, out);
             assertArrayEquals(config, inBytes, decByNode);
@@ -268,7 +329,69 @@ public class PortableCryptoTest {
         }
     }
 
-    private byte[] runNode(byte[] in, boolean decrypt, String... args) throws IOException, URISyntaxException, InterruptedException {
+    static long ct = 0;
+
+    private byte[] runNode(PortableCrypto crypto, byte[] in, boolean decrypt, String... args) throws IOException, URISyntaxException, InterruptedException {
+        Path tmp = Paths.get(System.getProperty("java.io.tmpdir"));
+        String suffix = Long.toString(System.currentTimeMillis(), 36) + new RandomStrings(rnd).get(3)
+                + "_" + ct++;
+        Path inFile = tmp.resolve(crypto.keyAlgorithm() + suffix + ".in");
+        Path outFile = tmp.resolve(crypto.keyAlgorithm() + suffix + ".out");
+        if (decrypt) {
+            args = ArrayUtils.concatenate(args, new String[]{"-d"});
+        }
+        args = ArrayUtils.concatenate(args, new String[]{"--in", inFile.toString(), "--out", outFile.toString()});
+
+        Files.write(inFile, in, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        List<String> l = new ArrayList<>(Arrays.asList(nodePath()));
+        l.addAll(Arrays.asList(args));
+
+        ProcessBuilder pb = new ProcessBuilder(l);
+
+        Process p = pb.start();
+        processes.add(p);
+
+        Phaser ph = new Phaser(3);
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Thread t = new Thread(() -> {
+            ph.arriveAndAwaitAdvance();
+            try ( InputStream inp = p.getInputStream()) {
+                Streams.copy(inp, out);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        t.start();
+
+        final ByteArrayOutputStream err = new ByteArrayOutputStream();
+        Thread te = new Thread(() -> {
+            ph.arriveAndAwaitAdvance();
+            try ( InputStream inp = p.getErrorStream()) {
+                Streams.copy(inp, err);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        te.start();
+
+        ph.arriveAndDeregister();
+
+        int code = p.waitFor();
+        assertEquals("Node failed for " + crypto + ":\n"
+                + " args " + Strings.join(' ', args) + "\n"
+                + Strings.join(' ', args) + "\nError:\n" + new String(err.toByteArray(), UTF_8)
+                + "\nOutput:\n" + new String(out.toByteArray(), UTF_8),
+                 0, code);
+
+        if (!Files.exists(outFile)) {
+            fail("Outfile " + outFile + " not created");
+        }
+
+        return Files.readAllBytes(outFile);
+    }
+
+    private byte[] xrunNode(PortableCrypto crypto, byte[] in, boolean decrypt, String... args) throws IOException, URISyntaxException, InterruptedException {
         if (decrypt) {
             args = ArrayUtils.concatenate(args, new String[]{"-d"});
         }
@@ -283,7 +406,7 @@ public class PortableCryptoTest {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         Thread t = new Thread(() -> {
             ph.arriveAndAwaitAdvance();
-            try (InputStream inp = p.getInputStream()) {
+            try ( InputStream inp = p.getInputStream()) {
                 Streams.copy(inp, out);
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -294,7 +417,7 @@ public class PortableCryptoTest {
         final ByteArrayOutputStream err = new ByteArrayOutputStream();
         Thread te = new Thread(() -> {
             ph.arriveAndAwaitAdvance();
-            try (InputStream inp = p.getErrorStream()) {
+            try ( InputStream inp = p.getErrorStream()) {
                 Streams.copy(inp, err);
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -304,13 +427,15 @@ public class PortableCryptoTest {
 
         ph.arriveAndDeregister();
         if (in != null) {
-            try (OutputStream o = p.getOutputStream()) {
+            try ( OutputStream o = p.getOutputStream()) {
                 o.write(in);
             }
         }
 
         int code = p.waitFor();
-        assertEquals(Strings.join(' ', args) + ": " + new String(err.toByteArray(), UTF_8), 0, code);
+        assertEquals("Node failed for " + crypto + ":\n"
+                + " args " + Strings.join(' ', args) + "\n"
+                + Strings.join(' ', args) + ": " + new String(err.toByteArray(), UTF_8), 0, code);
 
         byte[] result = out.toByteArray();
         return result;

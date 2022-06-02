@@ -53,6 +53,9 @@ import javax.crypto.Mac;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import com.mastfrog.util.thread.QuietAutoCloseable;
+import static java.nio.charset.StandardCharsets.US_ASCII;
+import java.security.spec.AlgorithmParameterSpec;
+import javax.crypto.spec.ChaCha20ParameterSpec;
 
 /**
  * Basic password-based encryption with (optional) hmac, configured and tested
@@ -141,6 +144,19 @@ public final class PortableCrypto implements QuietAutoCloseable {
         }
     }
 
+    String keyAlgorithm() {
+        return cryptoConfig.keyAlgorithm();
+    }
+
+    @Override
+    public String toString() {
+        return "PortableCrypto{" + "cryptoConfig=" + cryptoConfig + ", features=" + features + '}';
+    }
+
+    public boolean isEnabled(Features feature) {
+        return features.contains(feature);
+    }
+
     static Random defaultRandom() {
         try {
             return SecureRandom.getInstanceStrong();
@@ -151,7 +167,10 @@ public final class PortableCrypto implements QuietAutoCloseable {
 
     static Set<Features> toSet(Features... features) {
         EnumSet<Features> result = EnumSet.noneOf(Features.class);
-        result.addAll(Arrays.asList(features));
+        // slightly faster than arrays.asList
+        for (int i = 0; i < features.length; i++) {
+            result.add(features[i]);
+        }
         return result;
     }
 
@@ -193,7 +212,7 @@ public final class PortableCrypto implements QuietAutoCloseable {
         return result;
     }
 
-    private Cipher encipher(IvParameterSpec iv) {
+    private Cipher encipher(AlgorithmParameterSpec iv) {
         try {
             SecretKeySpec keySpec = new SecretKeySpec(key, cryptoConfig.keyAlgorithm);
             Cipher enCipher = Cipher.getInstance(cryptoConfig.cryptAlgorithm);
@@ -204,11 +223,10 @@ public final class PortableCrypto implements QuietAutoCloseable {
         }
     }
 
-    private Cipher decipher(IvParameterSpec iv) {
+    private Cipher decipher(AlgorithmParameterSpec iv) {
         try {
             SecretKeySpec keySpec = new SecretKeySpec(key, cryptoConfig.keyAlgorithm);
             Cipher deCipher = Cipher.getInstance(cryptoConfig.cryptAlgorithm);
-
             deCipher.init(Cipher.DECRYPT_MODE, keySpec, iv);
             return deCipher;
         } catch (Exception e) {
@@ -304,18 +322,21 @@ public final class PortableCrypto implements QuietAutoCloseable {
             return data;
         }
         if (!features.contains(MAC)) {
-            if (!features.contains(ENCRYPT)) {
-                return data;
-            }
             if (data.length <= cryptoConfig.ivSize) {
                 throw new IllegalArgumentException("Data length " + data.length
                         + " is less than the minimum initialization vector length.");
             }
-            byte[][] split = ArrayUtils.split(data, cryptoConfig.ivSize);
-            return _decrypt(split[0], split[1]);
+            byte[][] split = ArrayUtils.split(data,
+                    cryptoConfig.ivSize);
+            byte[] splitData = split[1];
+
+            byte[] result = _decrypt(split[0], splitData);
+            return result;
         }
         try {
-            byte[][] split = ArrayUtils.split(data, macConfig.saltLength, macConfig.saltLength + macConfig.macLength,
+            byte[][] split = ArrayUtils.split(data,
+                    macConfig.saltLength,
+                    macConfig.saltLength + macConfig.macLength,
                     macConfig.saltLength + macConfig.macLength + cryptoConfig.ivSize);
             byte[] salt = split[0];
             byte[] mac = split[1];
@@ -359,18 +380,33 @@ public final class PortableCrypto implements QuietAutoCloseable {
         }
     }
 
+    private AlgorithmParameterSpec createSpec(byte[] iv) {
+        switch (cryptoConfig.cryptAlgorithm) {
+            case "ChaCha20":
+                ChaCha20ParameterSpec cc = new ChaCha20ParameterSpec(iv, 0);
+                return cc;
+            default:
+                return new IvParameterSpec(iv);
+        }
+    }
+
     private byte[] _decrypt(byte[] iv, byte[] data) {
         if (data.length == 0) {
             return data;
         }
+        AlgorithmParameterSpec spec = null;
         try {
-            Cipher decipher = decipher(new IvParameterSpec(iv));
+            spec = createSpec(iv);
+            Cipher decipher = decipher(spec);
             for (int i = 0; i < cryptoConfig.rounds; i++) {
                 data = decipher.doFinal(data);
             }
             return data;
         } catch (IllegalBlockSizeException | BadPaddingException ex) {
-            return Exceptions.chuck(ex);
+            throw new IllegalStateException("With config " + cryptoConfig
+                    + " failed decrypting " + data.length
+                    + " bytes with an initial value length of " + iv.length
+                    + " in a parameter spec " + spec, ex);
         }
     }
 
@@ -382,7 +418,7 @@ public final class PortableCrypto implements QuietAutoCloseable {
         if (features.contains(LOG)) {
             System.err.println("ENC: iv: " + Strings.toPaddedHex(iv, " "));
         }
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        AlgorithmParameterSpec ivSpec = createSpec(iv);
         try {
             Cipher encipher = encipher(ivSpec);
             for (int i = 0; i < cryptoConfig.rounds; i++) {

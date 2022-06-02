@@ -25,6 +25,10 @@ const crypto = require( 'crypto' );
 
 const BLOWFISH = new CryptoConfig( 448, "blowfish", 8, 1 );
 const AES128 = new CryptoConfig( 128, "aes-128-cbc", 16, 1 );
+// Hmm, Java insists on a 12-byte IV everywhere, Node only accepts a 16 byte one - 
+// this is not going to work, I don't think.
+const CHACHA = new CryptoConfig( 256, "chacha20", 16, 1 );
+const CHACHA_POLY1305 = new CryptoConfig( 256, "chacha20-poly1305", 12, 1 );
 
 const HMAC256 = new MacConfig( 16, 32, "sha256", "sha256" );
 
@@ -37,12 +41,17 @@ const FEATURE_USE_MAC = "mac"
         , FEATURE_ENCRYPT = "encrypt"
         , FEATURE_DETERMINISTIC_TEST_MODE = "deterministic";
 
-module.exports = {PortableCrypto : PortableCrypto, 
-    FEATURE_USE_MAC : FEATURE_USE_MAC, FEATURE_LOG : FEATURE_LOG,
-    FEATURE_DETERMINISTIC_TEST_MODE : FEATURE_DETERMINISTIC_TEST_MODE, 
-    FEATURE_ENCRYPT : FEATURE_ENCRYPT,
-    BLOWFISH : BLOWFISH, AES128 : AES128, HMAC256 : HMAC256,
-    CryptoConfig : CryptoConfig, MacConfig : MacConfig};
+module.exports = {PortableCrypto: PortableCrypto,
+    FEATURE_USE_MAC: FEATURE_USE_MAC, FEATURE_LOG: FEATURE_LOG,
+    FEATURE_DETERMINISTIC_TEST_MODE: FEATURE_DETERMINISTIC_TEST_MODE,
+    FEATURE_ENCRYPT: FEATURE_ENCRYPT,
+    BLOWFISH: BLOWFISH,
+    CHACHA: CHACHA,
+    CHACHA_POLY1305: CHACHA_POLY1305,
+    AES128: AES128,
+    HMAC256: HMAC256,
+    CryptoConfig: CryptoConfig,
+    MacConfig: MacConfig};
 
 /**
  * Create a new PortableCrypto - 
@@ -90,11 +99,11 @@ module.exports = {PortableCrypto : PortableCrypto,
 function PortableCrypto( password, cryptoConfig, macConfig, features ) {
     cryptoConfig = cryptoConfig || BLOWFISH;
     macConfig = macConfig || HMAC256;
-    if ( typeof features === 'string' ) {
-        let f = [];
-        for ( var i = 2; i < arguments.length; i++ ) {
+    if (typeof features === 'string') {
+        let f = [ ];
+        for (var i = 2; i < arguments.length; i++) {
             var arg = arguments[i];
-            if ( typeof arg === 'string' ) {
+            if (typeof arg === 'string') {
                 f.push( arg );
             }
         }
@@ -102,7 +111,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
     }
     features = features || new Features( FEATURE_USE_MAC, FEATURE_ENCRYPT );
 
-    if ( features.log ) {
+    if (features.log) {
         console.error( 'INIT: ' + features );
         console.error( 'INIT: ' + cryptoConfig )
         console.error( 'INIT: ' + macConfig );
@@ -131,11 +140,11 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
     }
 
     function ensureInputBuffer( data ) {
-        if ( typeof data === 'string' ) {
+        if (typeof data === 'string') {
             return Buffer.from( data, 'utf8' );
         }
-        if ( data ) {
-            if ( !(data instanceof Buffer) ) {
+        if (data) {
+            if (!(data instanceof Buffer)) {
                 return ensureInputBuffer( JSON.stringify( data ) );
             }
         }
@@ -143,7 +152,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
     }
 
     function newInitializationVector( config ) {
-        if ( features.deterministic ) {
+        if (features.deterministic) {
             return Buffer.alloc( config.ivSize, 88 ); // ascii X / 0x58 hex
         } else {
             return crypto.randomBytes( config.ivSize );
@@ -154,11 +163,11 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         let salt = Buffer.alloc( macConfig.saltLength, 0 );
         let time = features.deterministic ? 1000 :
                 new Date().getTime() - TIMESTAMP_BASE;
-        if ( features.log ) {
+        if (features.log) {
             console.error( 'ENCRYPT-MAC: salt-timestamp:', time + " - " + new Date( time + TIMESTAMP_BASE ) )
         }
         write64bit( time, salt, 0 );
-        if ( !features.deterministic ) {
+        if (!features.deterministic) {
             crypto.randomFillSync( salt, 8, 8 );
         }
         return salt;
@@ -172,12 +181,12 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
      * @returns {PortableCrypto.encrypt.encrypted|nm$_portable-crypto.PortableCrypto.encrypt.encrypted|PortableCrypto._encrypt.buf|nm$_portable-crypto.PortableCrypto._encrypt.buf|Error|PortableCrypto.encrypt.result}
      */
     this.encrypt = ( data ) => {
-        if ( !data ) {
+        if (!data) {
             return new Error( 'Data null or undefined' );
         }
         data = ensureInputBuffer( data );
         const encrypted = features.encrypt ? _encrypt( data ) : data;
-        if ( !features.mac ) {
+        if (!features.mac) {
             return encrypted;
         }
         let salt = newSalt( macConfig );
@@ -191,7 +200,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         hmac.update( encrypted );
 
         let mac = hmac.digest();
-        if ( features.log ) {
+        if (features.log) {
             console.error( "ENCRYPT-MAC: salt: ", salt );
             console.error( "ENCRYPT-MAC: mac: ", mac );
         }
@@ -205,20 +214,26 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
     const _encrypt = ( data ) => {
         const iv = newInitializationVector( cryptoConfig );
         var buf = data;
-        if ( features.log ) {
+        if (features.log) {
             console.error( "ENC: iv: ", iv );
         }
-        for ( var i = 0; i < cryptoConfig.rounds; i++ ) {
-            let cipher = crypto.createCipheriv( cryptoConfig.algorithm, key, iv );
+        for (var i = 0; i < cryptoConfig.rounds; i++) {
+            let cipher;
+            if (cryptoConfig.algorithm === 'chacha20-poly1305') {
+                cipher = crypto.createCipheriv( cryptoConfig.algorithm, key, iv,
+                        {authTagLength: 16} );
+            } else {
+                cipher = crypto.createCipheriv( cryptoConfig.algorithm, key, iv );
+            }
             cipher.setAutoPadding( true );
-            let firstBuf = cipher.update( buf );
+            let firstBuf = cipher.update( buf, 'binary');
             let secondBuf = cipher.final( );
             buf = Buffer.alloc( firstBuf.length + secondBuf.length + cryptoConfig.ivSize );
             firstBuf.copy( buf, cryptoConfig.ivSize );
             secondBuf.copy( buf, firstBuf.length + cryptoConfig.ivSize );
             iv.copy( buf );
         }
-        if ( features.log ) {
+        if (features.log) {
             console.error( 'ENC: payload-length:', buf.length - iv.length )
         }
         return buf;
@@ -242,7 +257,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
      */
     this.minDecryptableLength = () => {
         let result = cryptoConfig.ivSize;
-        if ( features.mac ) {
+        if (features.mac) {
             result += macConfig.macLength + macConfig.saltLength;
         }
         return result;
@@ -255,10 +270,10 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
      * @returns {PortableCrypto._decrypt.buffer|Error|err}
      */
     this.decrypt = ( buffer ) => {
-        if ( typeof buffer === 'string' ) {
+        if (typeof buffer === 'string') {
             buffer = Buffer.from( buffer, 'base64' );
         }
-        if ( !features.mac ) {
+        if (!features.mac) {
             if (!features.encrypt) {
                 return buffer;
             }
@@ -270,12 +285,12 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         let timestamp = read64bit( salt, 0 ) + TIMESTAMP_BASE;
         let now = new Date().getTime();
         let timestampValid = now + ONE_DAY_MILLIS > timestamp && timestamp > TIMESTAMP_BASE;
-        if ( features.log ) {
+        if (features.log) {
             console.error( 'DECRYPT-MAC: salt:', salt )
             console.error( 'DECRYPT-MAC: salt-timestamp:', timestamp + " - " + new Date( timestamp )
                     + " " + (timestampValid ? "valid" : "invalid") )
         }
-        if ( !timestampValid ) {
+        if (!timestampValid) {
             throw new Error( "Illegal timestamp in salt" );
         }
 
@@ -292,33 +307,33 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         hmac.update( toDecrypt );
         let computedMac = hmac.digest();
 
-        if ( features.log ) {
+        if (features.log) {
             console.error( 'DECRYPT-MAC: iv: ', iv )
             console.error( 'DECRYPT-MAC: mac-received: ', mac )
             console.error( 'DECRYPT-MAC: mac-computed: ', computedMac )
             console.error( 'DECRYPT-MAC: key-hash:', keyDigest )
         }
         let macValidated = computedMac.equals( mac );
-        if ( features.log ) {
+        if (features.log) {
             console.error( 'DECRYPT-MAC: ' + (macValidated ? "valid" : "invalid") );
         }
-        if ( !macValidated ) {
+        if (!macValidated) {
             throw new Error( "Mac does not match" );
         }
         if (!features.encrypt) {
-            let result = Buffer.alloc(iv.length + toDecrypt.length);
-            iv.copy(result, 0);
-            toDecrypt.copy(result, iv.length);
+            let result = Buffer.alloc( iv.length + toDecrypt.length );
+            iv.copy( result, 0 );
+            toDecrypt.copy( result, iv.length );
             return result;
         }
         return _decrypt( iv, toDecrypt );
     }
 
     const _decrypt = ( iv, buffer ) => {
-        for ( var i = 0; i < cryptoConfig.rounds; i++ ) {
+        for (var i = 0; i < cryptoConfig.rounds; i++) {
             const decipher = crypto.createDecipheriv( cryptoConfig.algorithm, key, iv );
-            decipher.setAutoPadding( true );
-            let firstBuf = decipher.update( buffer );
+            decipher.setAutoPadding( false );
+            let firstBuf = decipher.update( buffer, 'binary' );
             let secondBuf = decipher.final();
             buffer = Buffer.alloc( firstBuf.length + secondBuf.length );
             firstBuf.copy( buffer );
@@ -345,16 +360,30 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
         // Coerces the password into the available bits,
         // wrapping around and xor'ing if longer
         var key = Buffer.from( password, 'utf8' );
+        console.log( 'KEY FOR ' + cryptoConfig.algorithm );
+        switch (cryptoConfig.algorithm) {
+            case "chacha20":
+            case "chacha20-poly1305":
+                // These two algorithms do not tolerate a key size not exactly
+                // the right number of bits
+                if (key.length < (cryptoConfig.keyBitLimit / 8)) {
+                    const padding = Buffer.alloc( (cryptoConfig.keyBitLimit / 8) - key.length, 0 );
+                    key = Buffer.concat( [ key, padding ] );
+                    if (features.log) {
+                        console.log( "CREATE_KEY: Padded key with " + padding.length + " zeros" );
+                    }
+                }
+        }
         let bits = (key.length * 8);
-        if ( bits > cryptoConfig.keyBitLimit ) {
+        if (bits > cryptoConfig.keyBitLimit) {
             var amt = cryptoConfig.keyByteLimit;
             let nue = Buffer.alloc( amt );
-            for ( var i = 0; i < amt; i++ ) {
+            for (var i = 0; i < amt; i++) {
                 nue.writeUInt8( key.readUInt8( i ), i );
             }
             var pos = amt;
-            while ( pos < key.length ) {
-                for ( let i = 0; i < nue.length && pos < key.length; i++ ) {
+            while (pos < key.length) {
+                for (let i = 0; i < nue.length && pos < key.length; i++) {
                     let newValue = nue.readUInt8( i ) ^ key.readUInt8( pos++ );
                     nue.writeUInt8( newValue, i );
                 }
@@ -366,7 +395,7 @@ function PortableCrypto( password, cryptoConfig, macConfig, features ) {
 }
 
 function CryptoConfig( keyBitLimit, algorithm, ivSize, rounds ) {
-    if ( keyBitLimit % 8 !== 0 ) {
+    if (keyBitLimit % 8 !== 0) {
         throw new Error( "Bit limit not divisible by 8:" + keyBitLimit );
     }
     this.keyBitLimit = keyBitLimit;
@@ -376,7 +405,7 @@ function CryptoConfig( keyBitLimit, algorithm, ivSize, rounds ) {
     this.rounds = rounds;
 
     this.toString = () => {
-        return ["key-bits", keyBitLimit, "iv-size", ivSize, "algorithm", algorithm].join( ' ' );
+        return [ "key-bits", keyBitLimit, "iv-size", ivSize, "algorithm", algorithm ].join( ' ' );
     }
 }
 
@@ -387,18 +416,18 @@ function MacConfig( saltLength, macLength, macAlgorithm, keyHashAlgorithm ) {
     this.keyHashAlgorithm = keyHashAlgorithm;
 
     this.toString = () => {
-        return ["salt-length", saltLength, "mac-length", macLength,
-            "mac-algorithm", macAlgorithm, "key-hash-algorithm", keyHashAlgorithm].join( ' ' );
+        return [ "salt-length", saltLength, "mac-length", macLength,
+            "mac-algorithm", macAlgorithm, "key-hash-algorithm", keyHashAlgorithm ].join( ' ' );
     }
 }
 
 function Features() {
-    if ( arguments.length === 1 && typeof arguments[0] === 'object' ) {
+    if (arguments.length === 1 && typeof arguments[0] === 'object') {
         arguments = Object.keys( arguments[0] );
     }
-    for ( var i = 0; i < arguments.length; i++ ) {
-        if ( arguments[i] ) {
-            switch ( arguments[i] ) {
+    for (var i = 0; i < arguments.length; i++) {
+        if (arguments[i]) {
+            switch (arguments[i]) {
                 case FEATURE_DETERMINISTIC_TEST_MODE :
                 case FEATURE_LOG:
                 case FEATURE_ENCRYPT:
@@ -407,17 +436,17 @@ function Features() {
                 default :
                     throw new Error( "Unknown feature " + arguments[i]
                             + ". Available features are: "
-                            + [FEATURE_USE_MAC, FEATURE_LOG,
-                                FEATURE_DETERMINISTIC_TEST_MODE].join( ', ' ) );
+                            + [ FEATURE_USE_MAC, FEATURE_LOG,
+                                FEATURE_DETERMINISTIC_TEST_MODE ].join( ', ' ) );
             }
             this[arguments[i]] = true;
         }
     }
 
     this.toString = () => {
-        let result = [];
-        for ( var key in this ) {
-            if ( typeof this[key] === 'boolean' ) {
+        let result = [ ];
+        for (var key in this) {
+            if (typeof this[key] === 'boolean') {
                 result.push( key );
             }
         }
@@ -425,30 +454,38 @@ function Features() {
     }
 }
 
-if ( require.main === module ) {
+if (require.main === module) {
     function printHelpAndExit( msg ) {
         console.log( 'Error: ' + msg + '\n' )
         console.log( 'Usage: portable-crypto --passphrase "iHazSekurity" '
                 + ' --log --aes --in somefile.txt --out encryptedfile.b64' );
-        console.log( '\nOPTIONS:\n' );
-        console.log( ' -d | --decrypt - Decrypt instead of encrypt' )
-        console.log( ' -a | --aes     - Use AES128 encryption instead of Blowfish' )
-        console.log( ' -c | --noencrypt   - Don\'t encrypt or decrypt, just validate the mac' )
-        console.log( ' -n | --nomac   - Don\'t generate an hmac to verify message integrity' )
-        console.log( ' -p | --pass    - Use the passed password or passphrase' )
-        console.log( ' -e | --passenv - Read the passphrase from an environment variable' )
-        console.log( ' -v | --verbose - Log buffer contents for debugging' )
-        console.log( ' -i | --in      - Read input from this file instead of stdin' )
-        console.log( ' -o | --out     - Write binary output to this file instead of stdout' )
-        console.log( ' -6 | --base64  - If encrypting, output base64 not binary encrypted data (encrypt only); if decrypting, decode base64 input' )
+
+        console.log( "\nEncryption Algorithm Options (pick one):\n" )
+        console.log( ' -a | --aes        - Use AES128 encryption' )
+        console.log( ' -h | --chacha     - Use ChaCha20 stream cipher encryption' )
+        console.log( ' -l | --chapoly    - Use ChaCha20-Poly1305 encryption' )
+        console.log( ' -c | --noencrypt  - Don\'t encrypt or decrypt, just validate the mac' )
+        console.log( '\nIf no algorithm is specified, the Blowfish cipher algorithm is used.' )
+
+        console.log( '\nOther Options:\n' );
+        console.log( ' -d | --decrypt    - Decrypt instead of encrypt' )
+        console.log( ' -n | --nomac      - Don\'t generate an hmac to verify message integrity' )
+        console.log( ' -p | --pass       - Use the passed password or passphrase' )
+        console.log( ' -e | --passenv    - Read the passphrase from an environment variable' )
+        console.log( ' -v | --verbose    - Log buffer contents for debugging' )
+        console.log( ' -i | --in         - Read input from this file instead of stdin' )
+        console.log( ' -o | --out        - Write binary output to this file instead of stdout' )
+        console.log( ' -6 | --base64     - If encrypting, output base64 not binary encrypted data (encrypt only); if decrypting, decode base64 input\n' )
         process.exit( msg ? 1 : 0 );
     }
 
     const cmdline = require( './cmdline' );
     const expansions = {
         a: 'aes',
+        h: 'chacha20',
         n: 'nomac',
         p: 'passphrase',
+        l: 'chapoly',
         q: 'passfile',
         e: 'passenv',
         v: 'verbose',
@@ -459,35 +496,45 @@ if ( require.main === module ) {
         '6': 'base64'
     };
     const args = cmdline.parseArgs( expansions );
-    if ( !args.passphrase && !args.passfile && !args.passenv ) {
+    if (!args.passphrase && !args.passfile && !args.passenv) {
         printHelpAndExit( 'No passphrase, passenv environment variable name or passphrase file provided. Use -p or -e or -q.' )
     }
-    var f = {};
-    if ( !args.nomac ) {
+    let f = {};
+    if (!args.nomac) {
         f.mac = true;
     }
-    if ( !args.noencrypt ) {
+    if (!args.noencrypt) {
         f.encrypt = true;
     }
-    if ( args.verbose ) {
+    if (args.verbose) {
         f.log = true;
     }
-    if ( args.deterministic ) {
+    if (args.deterministic) {
         f.deterministic = true;
     }
+    let cipherCount = 0;
+    for (let alg in [ "chacha20poly1305", "aes", "chacha20", "noencrypt" ]) {
+        if (args[alg]) {
+            cipherCount++;
+        }
+    }
+    if (cipherCount > 1) {
+        printHelpAndExit( "More than one cipher specified (--noencrypt is considered one).  Pick only one." );
+    }
+
     f = new Features( f );
 
-    const cryptoConfig = args.aes ? AES128 : BLOWFISH;
+    const cryptoConfig = args.chacha20poly1305 ? CHACHA_POLY1305 : args.chacha20 ? CHACHA : args.aes ? AES128 : BLOWFISH;
 
     const fs = require( 'fs' );
 
     const pass = args.passenv ? process.env[args.passenv] : args.passphrase ? args.passphrase :
             fs.readFileSync( args.passfile );
-    if ( !pass ) {
+    if (!pass) {
         printHelpAndExit( "No passphrase available - " + args.passenv + " is not set" );
     }
 
-    if ( f.log ) {
+    if (f.log) {
         console.error( 'START: ' + require( 'util' ).inspect( args ) )
     }
 
@@ -495,17 +542,17 @@ if ( require.main === module ) {
 
     function runEncrypt( input ) {
         let buf = pcrypt.encrypt( input );
-        if ( args.base64 ) {
-            if ( f.log ) {
+        if (args.base64) {
+            if (f.log) {
                 console.error( 'END: convert ' + buf.length + ' bytes of output to base64' )
             }
             buf = buf.toString( 'base64' );
         }
-        if ( f.log ) {
+        if (f.log) {
             console.error( 'END: write ' + buf.length + ' bytes to '
                     + args.out ? args.out : '<stdout>' )
         }
-        if ( args.out ) {
+        if (args.out) {
             fs.writeFileSync( args.out, buf );
         } else {
             process.stdout.write( buf );
@@ -514,18 +561,18 @@ if ( require.main === module ) {
     }
 
     function runDecrypt( input ) {
-        if ( args.base64 ) {
-            if ( f.log ) {
+        if (args.base64) {
+            if (f.log) {
                 console.error( 'END: convert ' + input.length + ' bytes of input from base64 to binary' )
             }
             input = Buffer.from( input.toString( 'utf8' ), 'base64' );
         }
         let buf = pcrypt.decrypt( input );
-        if ( f.log ) {
+        if (f.log) {
             console.error( 'END: write ' + buf.length + ' bytes to '
                     + args.out ? args.out : '<stdout>' )
         }
-        if ( args.out ) {
+        if (args.out) {
             fs.writeFileSync( args.out, buf );
         } else {
             process.stdout.write( buf );
@@ -534,35 +581,35 @@ if ( require.main === module ) {
     }
 
     function run( input ) {
-        if ( args.decrypt ) {
+        if (args.decrypt) {
             runDecrypt( input );
         } else {
             runEncrypt( input );
         }
     }
 
-    if ( f.log ) {
+    if (f.log) {
         console.error( 'INIT: read: ' + (args.in ? args.in : '<stdin>') );
     }
     var input = args.in ? fs.readFileSync( args.in ) : null;
-    if ( !input ) {
-        var chunks = [];
+    if (!input) {
+        var chunks = [ ];
         var length = 0;
         process.stdin.on( 'data', function ( dta ) {
             chunks.push( dta );
             length += dta.length;
         } );
         process.stdin.on( 'end', function () {
-            if ( length === 0 ) {
+            if (length === 0) {
                 printHelpAndExit( "Input closed without sending any bytes" )
             }
             let buf = Buffer.alloc( length );
             let pos = 0;
-            for ( let i = 0; i < chunks.length; i++ ) {
+            for (let i = 0; i < chunks.length; i++) {
                 chunks[i].copy( buf, pos );
                 pos += chunks[i].length;
             }
-            if ( f.log ) {
+            if (f.log) {
                 console.error( 'INIT: read: Received ' + buf.length + " bytes of input" );
             }
             run( buf );

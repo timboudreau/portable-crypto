@@ -26,31 +26,44 @@ package com.mastfrog.crypto;
 import com.mastfrog.util.strings.Strings;
 
 /**
- * Configuration of the encryption algorithm used by {@link PortableCrypto}. Your best bet is to use one of the
- * predefined constants on this class.
+ * Configuration of the encryption algorithm used by {@link PortableCrypto}.
+ * Your best bet is to use one of the predefined constants on this class.
  *
  * @author Tim Boudreau
  */
 public final class CryptoConfig {
 
-    public static CryptoConfig BLOWFISH = new CryptoConfig(448, "Blowfish", 8, "Blowfish/CBC/PKCS5Padding", 1);
-    public static CryptoConfig AES128 = new CryptoConfig( 128, "AES", 16, "AES/CBC/PKCS5Padding", 1 );
+    public static CryptoConfig BLOWFISH = new CryptoConfig(448, "Blowfish", 8, "Blowfish/CBC/PKCS5Padding", 1, 1);
+    public static CryptoConfig AES128 = new CryptoConfig(128, "AES", 16, "AES/CBC/PKCS5Padding", 1, 16);
+    public static CryptoConfig CHACHA_POLY1305 = new CryptoConfig(256, "ChaCha20-Poly1305", 12, "ChaCha20-Poly1305", 1, 1);
+    // Hmm, NodeJS requires 16 iv length for plain ChaCha20 and 12 for poly1305?
+    public static CryptoConfig CHACHA = new CryptoConfig(256, "ChaCha20", 12, "ChaCha20", 1, 1);
 
     final int keyBitLimit;
     final String keyAlgorithm;
     final int ivSize;
     final String cryptAlgorithm;
     final int rounds;
+    final int inputSizeMustBeMultipleOf;
 
-    public CryptoConfig(int keyBitLimit, String keyAlgorithm, int ivSize, String cryptAlgorithm, int rounds) {
-        if ( keyBitLimit % 8 != 0 ) {
-            throw new IllegalArgumentException( "Bit limit not divisible by 8:" + keyBitLimit );
+    public CryptoConfig(int keyBitLimit, String keyAlgorithm, int ivSize, String cryptAlgorithm, int rounds,
+            int inputSizeMustBeMultipleOf) {
+        if (keyBitLimit % 8 != 0) {
+            throw new IllegalArgumentException("Bit limit not divisible by 8:" + keyBitLimit);
+        }
+        if (inputSizeMustBeMultipleOf < 0) {
+            throw new IllegalArgumentException("Negative modulo for input");
         }
         this.keyBitLimit = keyBitLimit;
         this.keyAlgorithm = keyAlgorithm;
         this.ivSize = ivSize;
         this.cryptAlgorithm = cryptAlgorithm;
         this.rounds = rounds;
+        this.inputSizeMustBeMultipleOf = inputSizeMustBeMultipleOf;
+    }
+
+    String keyAlgorithm() {
+        return keyAlgorithm;
     }
 
     int keyByteLimit() {
@@ -59,8 +72,9 @@ public final class CryptoConfig {
 
     @Override
     public String toString() {
-        return Strings.join( ' ', "key-bits", keyBitLimit, "iv-size", ivSize, "key-algorithm", keyAlgorithm,
-                "crypt-algorithm", cryptAlgorithm ).toString();
+        return Strings.join(' ', "key-bits", keyBitLimit, "iv-size", ivSize, "key-algorithm", keyAlgorithm,
+                "crypt-algorithm", cryptAlgorithm, "inputSizeMustBeMultipleOf", inputSizeMustBeMultipleOf)
+                .toString();
     }
 
 }
