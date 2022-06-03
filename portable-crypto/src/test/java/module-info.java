@@ -8,6 +8,9 @@ open module com.mastfrog.portable.crypto {
     requires com.mastfrog.collections;
 
     // Inferred from source scan
+    requires com.mastfrog.misc;
+
+    // Inferred from source scan
 
     // Sibling com.mastfrog/util-preconditions-3.0.0-dev
     requires com.mastfrog.preconditions;
@@ -29,5 +32,8 @@ open module com.mastfrog.portable.crypto {
 
     // Sibling com.mastfrog/util-function-3.0.0-dev
     requires com.mastfrog.util.function;
+
+    // Inferred from test-source-scan
+    requires transitive junit;
 
 }
