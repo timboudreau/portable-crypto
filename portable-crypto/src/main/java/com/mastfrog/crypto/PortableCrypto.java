@@ -28,11 +28,11 @@ import static com.mastfrog.crypto.Features.DETERMINISTIC_TEST_MODE;
 import static com.mastfrog.crypto.Features.ENCRYPT;
 import static com.mastfrog.crypto.Features.LOG;
 import static com.mastfrog.crypto.Features.MAC;
+import com.mastfrog.function.misc.QuietAutoClosable;
 import com.mastfrog.util.collections.ArrayUtils;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Strings;
-import com.mastfrog.util.time.TimeUtil;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -40,6 +40,7 @@ import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
@@ -52,7 +53,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import com.mastfrog.util.thread.QuietAutoCloseable;
 
 /**
  * Basic password-based encryption with (optional) hmac, configured and tested
@@ -94,7 +94,7 @@ import com.mastfrog.util.thread.QuietAutoCloseable;
  *
  * @author Tim Boudreau
  */
-public final class PortableCrypto implements QuietAutoCloseable {
+public final class PortableCrypto implements QuietAutoClosable {
 
     private static final long TIMESTAMP_BASE = 1170786968198L;
 
@@ -225,7 +225,7 @@ public final class PortableCrypto implements QuietAutoCloseable {
         buf.order(ByteOrder.BIG_ENDIAN);
         buf.putLong(time);
         if (features.contains(LOG)) {
-            System.err.println("ENCRYPT-MAC: salt-timestamp: " + TimeUtil.toIsoFormat(time) + " - " + time);
+            System.err.println("ENCRYPT-MAC: salt-timestamp: " + Instant.ofEpochMilli(time) + " - " + time);
         }
         if (features.contains(DETERMINISTIC_TEST_MODE)) {
             buf.position(buf.capacity());
@@ -327,7 +327,7 @@ public final class PortableCrypto implements QuietAutoCloseable {
             if (features.contains(LOG)) {
                 System.err.println("DECRYPT-MAC: salt: " + Strings.toPaddedHex(salt, " "));
                 System.err.println("DECRYPT-MAC: salt-timestamp: " + timestamp + " - "
-                        + TimeUtil.toIsoFormat(timestamp));
+                        + Instant.ofEpochMilli(timestamp));
                 System.err.println("DECYRPT-MAC: iv: " + Strings.toPaddedHex(iv, " "));
                 System.err.println("DECRYPT-MAC: mac-received: " + Strings.toPaddedHex(mac, " "));
             }
