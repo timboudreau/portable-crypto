@@ -26,7 +26,10 @@ const crypto = require( 'crypto' );
 const BLOWFISH = new CryptoConfig( 448, "blowfish", 8, 1 );
 const AES128 = new CryptoConfig( 128, "aes-128-cbc", 16, 1 );
 
+const HMACSHA1 = new MacConfig( 16, 32, "sha1", "sha1" );
 const HMAC256 = new MacConfig( 16, 32, "sha256", "sha256" );
+const HMACSHA3_224 = new MacConfig( 16, 28, "sha3-224", "sha3-224" );
+const HMACSHA3_512 = new MacConfig( 16, 64, "sha3-512", "sha3-512" );
 
 const TIMESTAMP_BASE = 1170786968198;
 

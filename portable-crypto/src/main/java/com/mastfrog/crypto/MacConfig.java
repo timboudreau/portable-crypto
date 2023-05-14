@@ -40,7 +40,10 @@ public final class MacConfig {
     /**
      * Default parameters for HMAC generation using HmacSHA256 and SHA-256.
      */
-    public static MacConfig HMAC256 = new MacConfig( 16, 32, "HmacSHA256", "SHA-256" );
+    public static MacConfig HMACSHA1 = new MacConfig(16, 20, "HmacSHA1", "SHA-1");
+    public static MacConfig HMACSHA3_224 = new MacConfig(16, 28, "HmacSHA3-224", "SHA3-224");
+    public static MacConfig HMACSHA3_512 = new MacConfig(16, 64, "HmacSHA3-512", "SHA3-512");
+    public static MacConfig HMAC256 = new MacConfig(16, 32, "HmacSHA256", "SHA-256");
 
     public MacConfig(int saltLength, int macLength, String macAlgorithm, String keyHashAlgorithm) {
         this.saltLength = saltLength;
@@ -51,8 +54,8 @@ public final class MacConfig {
 
     @Override
     public String toString() {
-        return Strings.join( ' ', "salt-length", saltLength, "mac-length", macLength,
-                "mac-algorithm", macAlgorithm, "key-hash-algorithm", keyHashAlgorithm ).toString();
+        return Strings.join(' ', "salt-length", saltLength, "mac-length", macLength,
+                "mac-algorithm", macAlgorithm, "key-hash-algorithm", keyHashAlgorithm).toString();
     }
 
 }
