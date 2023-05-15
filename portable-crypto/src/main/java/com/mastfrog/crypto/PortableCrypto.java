@@ -315,8 +315,9 @@ public final class PortableCrypto implements QuietAutoClosable {
             return _decrypt(split[0], split[1]);
         }
         try {
+            int ivs = features.contains(ENCRYPT) ? cryptoConfig.ivSize : 0;
             byte[][] split = ArrayUtils.split(data, macConfig.saltLength, macConfig.saltLength + macConfig.macLength,
-                    macConfig.saltLength + macConfig.macLength + cryptoConfig.ivSize);
+                    macConfig.saltLength + macConfig.macLength + ivs);
             byte[] salt = split[0];
             byte[] mac = split[1];
             byte[] iv = split[2];
